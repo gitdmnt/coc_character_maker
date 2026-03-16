@@ -11,7 +11,7 @@ interface CoCCharacter {
 interface BasicInfo {
   name: string;
   playerName: string;
-  job: string;
+  job?: string;
   age: number;
   gender: string;
   address: string;
@@ -105,10 +105,10 @@ const CoCCharaMaker = () => {
   // 基本情報
   const [name, setName] = useState("");
   const [playerName, setPlayerName] = useState("");
-  const [job, setJob] = useState("");
+  const [job, setJob] = useState<string | undefined>(undefined);
   const [age, setAge] = useState(0);
   const [gender, setGender] = useState("");
-  const [adress, setAddress] = useState("");
+  const [address, setAddress] = useState("");
   const [hometown, setHometown] = useState("");
 
   // 能力値
@@ -222,11 +222,12 @@ const CoCCharaMaker = () => {
   const [ヒプノーシス, setヒプノーシス] = useState(1);
   const [砲, set砲] = useState(1);
 
-  // 初期化
-  useEffect(() => {
+  // 1~3, 7. キャラクターの年齢および性別と能力値を生成する処理 (乱数)
+  const handleGenerateCharacterAbilityScores = () => {
     // 1. 能力値の決定
-    // 1.1 年齢の決定
-    setAge(randomD100());
+    // 1.1 性別および年齢の決定
+    setGender(Math.random() < 0.5 ? "男性" : "女性");
+    setAge(Math.floor(Math.random() * 75) + 15); // 15歳から89歳までのランダムな年齢
 
     // 1.2 能力値の初期値を決定
     setStrSource(random3D6());
@@ -356,7 +357,84 @@ const CoCCharaMaker = () => {
     } else if (age <= 80) {
       setMovAgeOffset(-5);
     }
+  };
+
+  // 4, 7. 名前、職業、住所、出身地を生成する処理 (AI)
+  const handleGenerateCharacterJob = async () => {
+    setJob(undefined); // ジョブの生成中であることを示すために一旦undefinedにする
+    const scinarioSet: ScinarioSet = {
+      year: scinarioSetYear,
+      location: scinarioSetLocation,
+    };
+    const basicInfo: BasicInfo = {
+      name,
+      playerName,
+      age,
+      gender,
+      address,
+      hometown,
+    };
+    const abilityScores: AbilityScores = {
+      str: str + strAgeOffset,
+      con: con + conAgeOffset,
+      siz: siz + sizAgeOffset,
+      dex: dex + dexAgeOffset,
+      app: app + appAgeOffset,
+      edu: eduCheck(edu, eduCheckSource, eduAgeOffset),
+      int: int,
+      pow: pow,
+      mov: mov + movAgeOffset,
+      hp,
+      san,
+      mp,
+      luck,
+    };
+    const result = await jobOracle(scinarioSet, basicInfo, abilityScores);
+    setJob(result.job);
+    setName(result.name);
+    setAddress(result.address);
+    setHometown(result.hometown);
+  };
+
+  // 4. 職業技能の生成処理 (AI)
+  const handleGenerateCharacterJobSkill = async () => {};
+
+  // 5. 興味技能の生成処理 (乱数)
+  const handleGenerateCharacterInterestSkills = (cap: number) => {};
+
+  // 8. バックストーリーの生成処理 (AI)
+  const handleGenerateCharacterBackstory = async () => {};
+
+  // 9. 経済状況の生成処理 (乱数)
+  const handleGenerateCharacterEconomicStatus = () => {};
+
+  // 10. 道具と所持金の生成処理 (AI)
+  const handleGenerateCharacterEquipment = async () => {};
+
+  // いあきゃらJSONキャラシ生成
+  const generateIACharaJSON = (): string => {
+    return "unimplemented";
+  };
+
+  // 初期化
+  useEffect(() => {
+    // キャラクターの基本情報と能力値を生成する処理を呼び出す。
+    handleGenerateCharacterAbilityScores();
+    // 名前、職業、住所、出身地を生成する。
+    handleGenerateCharacterJob();
   }, []);
+
+  // 初期化2 (職業の生成が終了した後に行う処理)
+  useEffect(() => {
+    if (job === undefined) {
+      console.log("職業を生成中...");
+      return;
+    }
+    console.log("生成された職業:", job);
+    console.log("生成された名前:", name);
+    console.log("生成された住所:", address);
+    console.log("生成された出身地:", hometown);
+  }, [job]);
 
   return (
     <div>
@@ -398,6 +476,21 @@ const randomArrayWithSum = (length: number, sum: number): number[] => {
 
 const sum = (arr: number[]) => arr.reduce((a, b) => a + b, 0);
 
+const eduCheck = (
+  edu: number,
+  eduCheckSource: (number | null)[],
+  eduAgeOffset: number[],
+) => {
+  let effectiveEdu = edu;
+  for (let i = 0; i < eduCheckSource.length; i++) {
+    const checkValue = eduCheckSource[i];
+    if (checkValue === null || effectiveEdu < checkValue) {
+      effectiveEdu += eduAgeOffset[i];
+    }
+  }
+  return effectiveEdu;
+};
+
 // Gemini API function
 
 // 1. API Consoleで利用可能な範囲を無料枠に限定していること
@@ -406,8 +499,8 @@ const sum = (arr: number[]) => arr.reduce((a, b) => a + b, 0);
 // という理由から、APIキーはフロントエンドに直接埋め込む形で利用することとする。
 
 const API_KEY =
-  "PlzDoNotUseThisKey_AIzaSyCp_Wa5cJn3RA5A4w6Gqhn64AEBf-_Yf5k_PlzDoNotUseThisKey";
-const genAI = new GoogleGenAI({ apiKey: API_KEY });
+  "PlzDoNotUseThisKeyPlz_AIzaSyCp_Wa5cJn3RA5A4w6Gqhn64AEBf-_Yf5k_PlzDoNotUseThisKeyPlz";
+const genAI = new GoogleGenAI({ apiKey: API_KEY.slice(22, -22) });
 
 const getGeminiResponse = async (prompt: string): Promise<string> => {
   const response = await genAI.models.generateContent({
@@ -421,25 +514,26 @@ const jobOracle = async (
   scinarioSet: ScinarioSet,
   basicInfo: BasicInfo,
   AbilityScores: AbilityScores,
-): Promise<string> => {
+): Promise<{
+  name: string;
+  job: string;
+  address: string;
+  hometown: string;
+}> => {
   const prompt = `
 
 # Role
 
 以下はクトゥルフ神話TRPGのキャラクターの基本情報と能力値です。
-キャラクターが${scinarioSet.year}年の${scinarioSet.location}で活躍することを想定して、キャラクターの職業を提案してください。
+キャラクターが${scinarioSet.year}年の${scinarioSet.location}で活躍することを想定して、キャラクターの名前、職業、住所、出身地を提案してください。
 職業は、キャラクターの基本情報と能力値に基づいて、キャラクターがどのような職業に就いている可能性が高いかを考慮して提案してください。
 職業は、現実世界の職業や、クトゥルフ神話TRPGの世界観に存在する職業など、幅広い範囲から提案してください。
 
 # Data
 
 基本情報:
-- 名前: ${basicInfo.name}
-- プレイヤー名: ${basicInfo.playerName}
 - 年齢: ${basicInfo.age}
 - 性別: ${basicInfo.gender}
-- 住所: ${basicInfo.address}
-- 出身地: ${basicInfo.hometown}
 
 能力値:
 - STR: ${AbilityScores.str} / 100
@@ -460,12 +554,13 @@ const jobOracle = async (
 
 以下のJSON形式で、キャラクターの職業を提案してください。
 \`\`\`
-{"job": "職業名"}
+{"name": "キャラクター名", "job": "職業名", "address": "住所", "hometown": "出身地"}
 \`\`\`
 
 `;
 
-  return await getGeminiResponse(prompt);
+  const response = await getGeminiResponse(prompt);
+  return JSON.parse(response);
 };
 
 export default CoCCharaMaker;
