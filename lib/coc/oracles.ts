@@ -193,7 +193,7 @@ export const backstoryOracle = async ({
 - MP: ${abilityScores.mp}
 - LUCK: ${abilityScores.luck}
 
-スキルリスト:
+スキルリスト: (スキルの上限値は100)
 ${Object.entries(skills)
   .map(([skill, value]) => `- ${skill}: ${value}`)
   .join("\n")}
