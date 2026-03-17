@@ -1,0 +1,22 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "coc-character-maker",
+  "main": ".open-next/worker.js",
+  "compatibility_date": "2026-03-17",
+  "compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],
+  "assets": {
+    "directory": ".open-next/assets",
+    "binding": "ASSETS",
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "coc_character_maker_db",
+      "database_id": "7a68d0a7-4b43-4487-85e8-2fcc92b919b8",
+      "migrations_dir": "migrations",
+    },
+  ],
+  "vars": {
+    "NODE_ENV": "production",
+  },
+}
