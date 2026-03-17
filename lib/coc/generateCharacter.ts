@@ -19,6 +19,7 @@ import {
   jobSkillOracle,
 } from "./oracles";
 import { SKILL_LIST } from "./constants";
+import { add } from "temporal-polyfill/fns/plainyearmonth";
 
 export interface SkillAllocationDetails {
   jobSkillKeys: (keyof Skills)[];
@@ -150,24 +151,32 @@ export const generateCharacterProfile = async (
   } = generateInterestSkills(jobSkills, generated.abilityScores);
 
   await onProgress?.("バックストーリー生成", 5, TOTAL_STEPS);
-  const backstory = (
-    await backstoryOracle({
-      scinarioSet,
-      basicInfo,
-      abilityScores: generated.abilityScores,
-      skills: completeSkills,
-    })
-  ).backstory;
+  const backstoryAndAddress = await backstoryOracle({
+    scinarioSet,
+    basicInfo,
+    abilityScores: generated.abilityScores,
+    jobAllocated,
+    interestAllocated,
+    skills: completeSkills,
+  });
+  const backstory = backstoryAndAddress.backstory;
+
+  const newBasicInfo = {
+    ...basicInfo,
+    address: backstoryAndAddress.address,
+  };
 
   await onProgress?.("装備・所持金決定", 6, TOTAL_STEPS);
   const equipment = await equipmentMoneyOracle(
     scinarioSet,
     backstory,
+    jobAllocated,
+    interestAllocated,
     completeSkills,
   );
 
   return {
-    basicInfo,
+    basicInfo: newBasicInfo,
     abilityScores: generated.abilityScores,
     abilityDetails: generated.details,
     skills: completeSkills,
