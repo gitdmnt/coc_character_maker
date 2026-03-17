@@ -1,5 +1,6 @@
 import { GoogleGenAI } from "@google/genai";
 import { AbilityScores, BasicInfo, ScinarioSet, Skills } from "@/types/coc";
+import { JOB_LIST } from "./constants";
 
 const getGenAI = (): GoogleGenAI => {
   const apiKey = process.env.GOOGLE_AI_API_KEY;
@@ -41,14 +42,27 @@ export const jobOracle = async (
   address: string;
   hometown: string;
 }> => {
+  const jobs = [
+    JOB_LIST[Math.floor(Math.random() * JOB_LIST.length)],
+    JOB_LIST[Math.floor(Math.random() * JOB_LIST.length)],
+    JOB_LIST[Math.floor(Math.random() * JOB_LIST.length)],
+    JOB_LIST[Math.floor(Math.random() * JOB_LIST.length)],
+    JOB_LIST[Math.floor(Math.random() * JOB_LIST.length)],
+    JOB_LIST[Math.floor(Math.random() * JOB_LIST.length)],
+    JOB_LIST[Math.floor(Math.random() * JOB_LIST.length)],
+    JOB_LIST[Math.floor(Math.random() * JOB_LIST.length)],
+    JOB_LIST[Math.floor(Math.random() * JOB_LIST.length)],
+    JOB_LIST[Math.floor(Math.random() * JOB_LIST.length)],
+  ];
+
   const prompt = `
 # Role
 
 以下はクトゥルフ神話TRPGのキャラクターの基本情報と能力値です。
 キャラクターが${scinarioSet.year}年の${scinarioSet.location}で活躍することを想定して、キャラクターの名前、職業、住所、出身地を提案してください。
-職業は、キャラクターの基本情報と能力値に基づいて、キャラクターがどのような職業に就いている可能性が高いかを考慮して提案してください。
-職業は、アスリート、石、エンジニア、エンターテイナー、活動家、警官、刑事、芸術家、古物鑑定家、作家、士官、司書、ジャーナリスト、私立探偵、聖職者、超心理学者、ディレッタント、伝導者、パイロット、ハッカー、犯罪者、兵士、法律家、放浪者、研究者、銀行員、歯科衛生士、パティシエ、ビジネスマン、ミュージシャンなど、多様な職業から提案してください。
+職業は、${jobs.join("、")}などの一般的な職業カテゴリからそれらしいものを選択してください。
 住所は、職業と関連性の高い場所を提案してください。
+
 
 # Data
 
@@ -74,7 +88,7 @@ export const jobOracle = async (
 # Output
 
 JSON Response APIとして、以下のJSON形式のデータのみを出力してください。
-{"name": "キャラクター名", "job": "職業名", "address": "住所", "hometown": "出身地"}
+{"reason": "その職業を選んだ簡潔な理由","name": "キャラクター名", "job": "職業名", "address": "住所", "hometown": "出身地"}
 `;
 
   return JSON.parse(await getGeminiResponse(prompt));
