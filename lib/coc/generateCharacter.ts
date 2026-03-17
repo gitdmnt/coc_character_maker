@@ -110,6 +110,9 @@ export const generateCharacterProfile = async (
   await onProgress?.("能力値生成", 1, TOTAL_STEPS);
   const generated = generateCharacterAbilityScores(playerName);
 
+  baseSkills.回避 = Math.floor(generated.abilityScores.dex / 2);
+  baseSkills.母国語 = generated.abilityScores.edu;
+
   await onProgress?.("職業決定", 2, TOTAL_STEPS);
   const generatedJob = await jobOracle(
     scinarioSet,
