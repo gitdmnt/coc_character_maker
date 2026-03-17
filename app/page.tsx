@@ -623,7 +623,7 @@ const CoCCharaMaker = () => {
           <button
             type="button"
             onClick={exportCcfolia}
-            className={`${btnClass} !bg-[#e8f4fd]`}
+            className={`${btnClass} bg-[#e8f4fd]!`}
           >
             🎲 ドリームメーカー書き出し
           </button>
@@ -998,7 +998,7 @@ const CoCCharaMaker = () => {
               <button
                 type="button"
                 onClick={() => setBonusDice((v) => v + 1)}
-                className={`${btnClass} !bg-[#d4edda] w-full`}
+                className={`${btnClass} bg-[#d4edda]! w-full`}
               >
                 ボーナス
               </button>
@@ -1010,7 +1010,7 @@ const CoCCharaMaker = () => {
               <button
                 type="button"
                 onClick={() => setBonusDice((v) => v - 1)}
-                className={`${btnClass} !bg-[#f8d7da] w-full`}
+                className={`${btnClass} bg-[#f8d7da]! w-full`}
               >
                 ペナルティ
               </button>
@@ -1072,7 +1072,7 @@ const CoCCharaMaker = () => {
               <button
                 type="button"
                 onClick={() => setSkillEditMode((v) => !v)}
-                className={`${btnClass} ${skillEditMode ? "!bg-yellow-300" : ""}`}
+                className={`${btnClass} ${skillEditMode ? "bg-yellow-300!" : ""}`}
               >
                 {skillEditMode ? "✅ 編集完了" : "✏️ 割り振り編集"}
               </button>
