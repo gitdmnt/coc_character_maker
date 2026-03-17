@@ -693,12 +693,9 @@ const CoCCharaMaker = () => {
           </h2>
           <div className="flex gap-4 flex-wrap">
             <div className="flex items-center gap-2">
-              <label className="text-xs font-black">年</label>
               <input
                 type="number"
                 value={scenarioSet.year}
-                min={1900}
-                max={2300}
                 onChange={(e) => {
                   const parsed = Number(e.target.value);
                   if (!Number.isNaN(parsed))
@@ -708,6 +705,7 @@ const CoCCharaMaker = () => {
                   focus:outline-none focus:shadow-[3px_3px_0px_0px_rgba(0,0,0,1)]
                   transition-all duration-150"
               />
+              <label className="text-xs font-black">年</label>
             </div>
             <div className="flex items-center gap-2">
               <label className="text-xs font-black">地域</label>
