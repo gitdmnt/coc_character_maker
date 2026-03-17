@@ -1168,7 +1168,7 @@ const CoCCharaMaker = () => {
             </h2>
             <p className="text-2xl font-black tabular-nums">
               {money !== undefined ? (
-                `${money.toLocaleString()}円`
+                `${money.toLocaleString()}${money.toLocaleString().endsWith("円") ? "" : "円"}`
               ) : (
                 <span className="text-gray-500 text-sm italic">未生成</span>
               )}

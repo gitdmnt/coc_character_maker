@@ -135,7 +135,7 @@ export const allocatePointsWithCap = (
       availableSkills[Math.floor(rng() * availableSkills.length)];
 
     const currentValue = newSkills[randomSkill] ?? 0;
-    const diff = Math.min(cap - currentValue, point - cost);
+    const diff = Math.min(cap - currentValue, point - cost, 50);
     if (diff <= 0) continue;
 
     const increment = Math.floor(rng() * diff) + 1;

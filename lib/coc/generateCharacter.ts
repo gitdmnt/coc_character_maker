@@ -41,7 +41,7 @@ export type ProgressCallback = (
   total: number,
 ) => void | Promise<void>;
 
-const TOTAL_STEPS = 6;
+const TOTAL_STEPS = 5;
 
 const ensureCreditSkill = (jobSkills: string[]): string[] =>
   jobSkills.includes("信用") ? jobSkills : [...jobSkills, "信用"];
