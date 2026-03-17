@@ -124,9 +124,9 @@ export const allocatePointsWithCap = (
   while (cost < point && attempts < maxAttempts) {
     attempts += 1;
 
-    const availableSkills = candidateSkills.filter(
-      (skill) => (newSkills[skill] ?? 0) < cap,
-    );
+    const availableSkills = candidateSkills
+      .filter((skill) => (newSkills[skill] ?? 0) < cap)
+      .filter((skill) => !skill.includes("(その他)"));
     if (availableSkills.length === 0) break;
 
     const randomSkill =
@@ -142,6 +142,18 @@ export const allocatePointsWithCap = (
   }
 
   return newSkills;
+};
+
+export const diffSkills = (
+  before: Skills,
+  after: Skills,
+): Partial<Record<keyof Skills, number>> => {
+  const result: Partial<Record<keyof Skills, number>> = {};
+  for (const key of Object.keys(after) as (keyof Skills)[]) {
+    const diff = (after[key] ?? 0) - (before[key] ?? 0);
+    if (diff > 0) result[key] = diff;
+  }
+  return result;
 };
 
 export const generateCharacterAbilityScores = (
@@ -331,5 +343,55 @@ export const generateCharacterAbilityScores = (
       luck,
       luckSource,
     },
+  };
+};
+
+export interface DiceRollResult {
+  firstDigit: number;
+  secondDigits: number[];
+  extraDiceCount: number;
+  type: "normal" | "bonus" | "penalty";
+  total: number;
+  goal: number;
+  isSuccess: boolean;
+}
+
+export const diceRoll1D100 = (
+  rng: () => number = Math.random,
+  extraDiceCountThatPlusMeansBonusAndMinusMeansPenalty: number = 0,
+  goal: number,
+): DiceRollResult => {
+  const tryCount =
+    1 + Math.abs(extraDiceCountThatPlusMeansBonusAndMinusMeansPenalty);
+  const type =
+    extraDiceCountThatPlusMeansBonusAndMinusMeansPenalty > 0
+      ? "bonus"
+      : extraDiceCountThatPlusMeansBonusAndMinusMeansPenalty < 0
+        ? "penalty"
+        : "normal";
+
+  const firstDigit = randomD10(rng) - 1;
+  const secondDigits = Array.from(
+    { length: tryCount },
+    () => randomD10(rng) - 1,
+  );
+  const secondDigit =
+    type === "bonus"
+      ? Math.min(...secondDigits)
+      : type === "penalty"
+        ? Math.max(...secondDigits)
+        : secondDigits[0];
+  const total = firstDigit * 10 + secondDigit;
+  const finalTotal = total === 0 ? 100 : total;
+  const isSuccess = finalTotal <= goal;
+
+  return {
+    firstDigit,
+    secondDigits,
+    extraDiceCount: tryCount - 1,
+    type,
+    total: finalTotal,
+    goal,
+    isSuccess,
   };
 };

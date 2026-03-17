@@ -9,7 +9,11 @@ import { LuckScoreRow } from "@/components/coc/LuckScoreRow";
 import { SkillRow } from "@/components/coc/SkillRow";
 import { createInitialSkills, SKILL_CATEGORIES } from "@/lib/coc/constants";
 import { AbilityGenerationDetails, BasicInfo, Skills } from "@/types/coc";
-import type { CharacterGenerationResult } from "@/lib/coc/generateCharacter";
+import { DiceRollResult, diceRoll1D100, eduCheck } from "@/lib/coc/domain";
+import type {
+  CharacterGenerationResult,
+  SkillAllocationDetails,
+} from "@/lib/coc/generateCharacter";
 
 // ─── 型 ────────────────────────────────────────────────────────────────────
 
@@ -22,6 +26,31 @@ type GenerateApiError = {
   };
 };
 
+// SSEイベント型
+type SseTaskStart = {
+  type: "taskStart";
+  step: string;
+  index: number;
+  total: number;
+};
+type SseTaskEnd = {
+  type: "taskEnd";
+  step: string;
+  index: number;
+  total: number;
+  durationMs: number;
+};
+type SseError = {
+  type: "error";
+  code: string;
+  message: string;
+  requestId: string;
+};
+type SseResult = { type: "result" } & CharacterGenerationResult;
+type SseEvent = SseTaskStart | SseTaskEnd | SseError | SseResult;
+
+type GenerationProgress = { step: string; index: number; total: number };
+
 type ScenarioSet = {
   year: number;
   location: string;
@@ -32,6 +61,7 @@ type CharacterExport = {
   basicInfo: BasicInfo;
   abilityDetails: AbilityGenerationDetails;
   skills: Skills;
+  skillAllocationDetails?: SkillAllocationDetails;
   backstory?: string;
   equipment?: string[];
   money?: number;
@@ -129,6 +159,9 @@ const CoCCharaMaker = () => {
   const [abilityDetails, setAbilityDetails] =
     useState<AbilityGenerationDetails>(createEmptyAbilityDetails());
   const [skills, setSkills] = useState<Skills>(createInitialSkills());
+  const [skillAllocationDetails, setSkillAllocationDetails] =
+    useState<SkillAllocationDetails | null>(null);
+  const [skillEditMode, setSkillEditMode] = useState(false);
   const [backstory, setBackstory] = useState<string | undefined>(undefined);
   const [equipment, setEquipment] = useState<string[] | undefined>(undefined);
   const [money, setMoney] = useState<number | undefined>(undefined);
@@ -136,12 +169,29 @@ const CoCCharaMaker = () => {
     undefined,
   );
   const [isGenerating, setIsGenerating] = useState(false);
+  const [generationProgress, setGenerationProgress] =
+    useState<GenerationProgress | null>(null);
+
+  const [selectedSkill, setSelectedSkill] = useState<string | null>(null);
+  const [bonusDice, setBonusDice] = useState(0);
+  const [diceResult, setDiceResult] = useState<DiceRollResult | null>(null);
 
   // ─── API ──────────────────────────────────────────────────────────────────
 
   const generateCharacter = async () => {
     setErrorMessage(undefined);
     setIsGenerating(true);
+    setGenerationProgress(null);
+
+    const ts = () =>
+      new Date().toLocaleTimeString("ja-JP", {
+        hour12: false,
+        hour: "2-digit",
+        minute: "2-digit",
+        second: "2-digit",
+        fractionalSecondDigits: 3,
+      });
+
     try {
       const response = await fetch("/api/generate", {
         method: "POST",
@@ -153,11 +203,9 @@ const CoCCharaMaker = () => {
         }),
       });
 
-      const payload = (await response.json()) as
-        | CharacterGenerationResult
-        | GenerateApiError;
-
+      // バリデーションエラーは通常のJSONで返ってくる
       if (!response.ok) {
+        const payload = (await response.json()) as GenerateApiError;
         setErrorMessage(
           "error" in payload
             ? `${payload.error.message} (code: ${payload.error.code}, request: ${payload.error.requestId})`
@@ -166,17 +214,58 @@ const CoCCharaMaker = () => {
         return;
       }
 
-      if (!("basicInfo" in payload)) {
-        setErrorMessage("レスポンス形式が不正です");
+      if (!response.body) {
+        setErrorMessage("ストリームが利用できません");
         return;
       }
 
-      setBasicInfo(payload.basicInfo);
-      setAbilityDetails(payload.abilityDetails);
-      setSkills(payload.skills);
-      setBackstory(payload.backstory);
-      setEquipment(payload.equipment);
-      setMoney(payload.money);
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (value) buffer += decoder.decode(value, { stream: !done });
+
+        const chunks = buffer.split("\n\n");
+        buffer = chunks.pop() ?? "";
+
+        for (const chunk of chunks) {
+          const line = chunk.startsWith("data: ") ? chunk.slice(6) : chunk;
+          if (!line.trim()) continue;
+
+          const event = JSON.parse(line) as SseEvent;
+
+          if (event.type === "taskStart") {
+            setGenerationProgress({
+              step: event.step,
+              index: event.index,
+              total: event.total,
+            });
+            console.log(
+              `${ts()} ▶ [${event.index}/${event.total}] ${event.step}`,
+            );
+          } else if (event.type === "taskEnd") {
+            console.log(
+              `${ts()} ✓ [${event.index}/${event.total}] ${event.step} (${event.durationMs}ms)`,
+            );
+          } else if (event.type === "result") {
+            setBasicInfo(event.basicInfo);
+            setAbilityDetails(event.abilityDetails);
+            setSkills(event.skills);
+            setSkillAllocationDetails(event.skillAllocationDetails);
+            setBackstory(event.backstory);
+            setEquipment(event.equipment);
+            setMoney(event.money);
+          } else if (event.type === "error") {
+            setErrorMessage(
+              `${event.message} (code: ${event.code}, request: ${event.requestId})`,
+            );
+          }
+        }
+
+        if (done) break;
+      }
     } catch (error) {
       setErrorMessage(
         error instanceof Error
@@ -185,7 +274,90 @@ const CoCCharaMaker = () => {
       );
     } finally {
       setIsGenerating(false);
+      setGenerationProgress(null);
     }
+  };
+
+  // ─── JSON エクスポート ───────────────────────────────────────────────────
+
+  // ─── スキル割り振り編集 ──────────────────────────────────────────────────
+
+  const initialSkills = createInitialSkills();
+
+  const usedJobPoints = skillAllocationDetails
+    ? Object.values(skillAllocationDetails.jobAllocated).reduce(
+        (a, b) => a + (b ?? 0),
+        0,
+      )
+    : 0;
+  const usedInterestPoints = skillAllocationDetails
+    ? Object.values(skillAllocationDetails.interestAllocated).reduce(
+        (a, b) => a + (b ?? 0),
+        0,
+      )
+    : 0;
+
+  const handleJobAllocatedChange = (skill: keyof Skills, newVal: number) => {
+    if (!skillAllocationDetails) return;
+    const base = initialSkills[skill];
+    const currInterest = skillAllocationDetails.interestAllocated[skill] ?? 0;
+    const newTotal = base + newVal + currInterest;
+    if (newTotal > 90) return;
+    const oldVal = skillAllocationDetails.jobAllocated[skill] ?? 0;
+    if (usedJobPoints - oldVal + newVal > skillAllocationDetails.jobPoints)
+      return;
+    const newAllocated = {
+      ...skillAllocationDetails.jobAllocated,
+      [skill]: newVal,
+    };
+    setSkillAllocationDetails({
+      ...skillAllocationDetails,
+      jobAllocated: newAllocated,
+    });
+    setSkills((prev) => ({ ...prev, [skill]: newTotal }));
+  };
+
+  const handleInterestAllocatedChange = (
+    skill: keyof Skills,
+    newVal: number,
+  ) => {
+    if (!skillAllocationDetails) return;
+    const base = initialSkills[skill];
+    const currJob = skillAllocationDetails.jobAllocated[skill] ?? 0;
+    const newTotal = base + currJob + newVal;
+    if (newTotal > 90) return;
+    const oldVal = skillAllocationDetails.interestAllocated[skill] ?? 0;
+    if (
+      usedInterestPoints - oldVal + newVal >
+      skillAllocationDetails.interestPoints
+    )
+      return;
+    const newAllocated = {
+      ...skillAllocationDetails.interestAllocated,
+      [skill]: newVal,
+    };
+    setSkillAllocationDetails({
+      ...skillAllocationDetails,
+      interestAllocated: newAllocated,
+    });
+    setSkills((prev) => ({ ...prev, [skill]: newTotal }));
+  };
+
+  // ─── ダイスロール ────────────────────────────────────────────────────────
+
+  const handleRollDice = (
+    skillName: string,
+    goal: number,
+    bonus: number,
+  ): DiceRollResult => {
+    const rng = Math.random;
+    const result = diceRoll1D100(rng, bonus, goal);
+    console.log(
+      `ダイスロール: skill=${skillName}, goal=${goal}, bonus=${bonus}, result=${result.total})`,
+    );
+    setSelectedSkill(skillName);
+    setDiceResult(result);
+    return result;
   };
 
   // ─── JSON エクスポート ───────────────────────────────────────────────────
@@ -196,6 +368,7 @@ const CoCCharaMaker = () => {
       basicInfo,
       abilityDetails,
       skills,
+      skillAllocationDetails: skillAllocationDetails ?? undefined,
       backstory,
       equipment,
       money,
@@ -309,6 +482,8 @@ const CoCCharaMaker = () => {
     if (data.basicInfo) setBasicInfo(data.basicInfo);
     if (data.abilityDetails) setAbilityDetails(data.abilityDetails);
     if (data.skills) setSkills(data.skills);
+    if (data.skillAllocationDetails !== undefined)
+      setSkillAllocationDetails(data.skillAllocationDetails ?? null);
     if (data.backstory !== undefined) setBackstory(data.backstory);
     if (data.equipment !== undefined) setEquipment(data.equipment);
     if (data.money !== undefined) setMoney(data.money);
@@ -545,6 +720,44 @@ const CoCCharaMaker = () => {
         </div>
       </div>
 
+      {/* ===== プログレスバー ===== */}
+      {generationProgress && (
+        <div className="border-4 border-black bg-white shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] p-4 animate-[fadeSlideIn_0.2s_ease-out_both]">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-sm font-black">
+              ⚙️ {generationProgress.step}
+            </span>
+            <span className="text-xs font-bold text-gray-600 tabular-nums">
+              {generationProgress.index} / {generationProgress.total}
+            </span>
+          </div>
+          {/* バー */}
+          <div className="w-full h-5 border-2 border-black bg-gray-100 overflow-hidden">
+            <div
+              className="h-full bg-[#ff6b6b] border-r-2 border-black transition-all duration-300"
+              style={{
+                width: `${(generationProgress.index / generationProgress.total) * 100}%`,
+              }}
+            />
+          </div>
+          {/* ステップドット */}
+          <div className="flex gap-1.5 mt-2">
+            {Array.from({ length: generationProgress.total }, (_, i) => (
+              <div
+                key={i}
+                className={`flex-1 h-2 border border-black transition-all duration-300 ${
+                  i < generationProgress.index
+                    ? "bg-[#ff6b6b]"
+                    : i === generationProgress.index - 1
+                      ? "bg-[#ff6b6b] animate-pulse"
+                      : "bg-gray-200"
+                }`}
+              />
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* ===== エラー表示 ===== */}
       {errorMessage && (
         <div className="p-3 bg-red-300 border-4 border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] animate-shake">
@@ -618,38 +831,70 @@ const CoCCharaMaker = () => {
           </h2>
           {/* 主要能力値グリッド */}
           <div className="grid grid-cols-4 sm:grid-cols-5 gap-2">
-            <StatCard
-              label="STR"
-              value={abilityDetails.str + abilityDetails.strAgeOffset}
-            />
-            <StatCard
-              label="CON"
-              value={abilityDetails.con + abilityDetails.conAgeOffset}
-            />
-            <StatCard
-              label="SIZ"
-              value={abilityDetails.siz + abilityDetails.sizAgeOffset}
-            />
-            <StatCard
-              label="DEX"
-              value={abilityDetails.dex + abilityDetails.dexAgeOffset}
-            />
-            <StatCard
-              label="APP"
-              value={abilityDetails.app + abilityDetails.appAgeOffset}
-            />
-            <StatCard label="INT" value={abilityDetails.int} />
-            <StatCard label="POW" value={abilityDetails.pow} />
-            <StatCard
-              label="MOV"
-              value={abilityDetails.mov + abilityDetails.movAgeOffset}
-            />
-            <StatCard label="HP" value={abilityDetails.hp} />
-            <StatCard label="MP" value={abilityDetails.mp} />
+            {[
+              {
+                label: "STR",
+                base: abilityDetails.str,
+                ageOffset: abilityDetails.strAgeOffset,
+              },
+              {
+                label: "CON",
+                base: abilityDetails.con,
+                ageOffset: abilityDetails.conAgeOffset,
+              },
+              {
+                label: "SIZ",
+                base: abilityDetails.siz,
+                ageOffset: abilityDetails.sizAgeOffset,
+              },
+              {
+                label: "DEX",
+                base: abilityDetails.dex,
+                ageOffset: abilityDetails.dexAgeOffset,
+              },
+              {
+                label: "APP",
+                base: abilityDetails.app,
+                ageOffset: abilityDetails.appAgeOffset,
+              },
+              { label: "INT", base: abilityDetails.int, ageOffset: 0 },
+              { label: "POW", base: abilityDetails.pow, ageOffset: 0 },
+              {
+                label: "EDU",
+                base: eduCheck(
+                  abilityDetails.edu,
+                  abilityDetails.eduCheckSource,
+                  abilityDetails.eduAgeOffset,
+                ),
+                ageOffset: 0,
+              },
+              { label: "LUCK", base: abilityDetails.luck, ageOffset: 0 },
+              {
+                label: "MOV",
+                base: abilityDetails.mov,
+                ageOffset: abilityDetails.movAgeOffset,
+              },
+            ].map(({ label, base, ageOffset }) => (
+              <div
+                onClick={() =>
+                  label !== "MOV" &&
+                  handleRollDice(label, base + ageOffset, bonusDice)
+                }
+                key={label}
+                className="cursor-pointer"
+              >
+                <StatCard key={label} label={label} value={base + ageOffset} />
+              </div>
+            ))}
           </div>
           {/* 重要ステータス */}
           <div className="grid grid-cols-3 gap-2">
-            <div className="col-span-1 flex flex-col items-center border-2 border-black bg-yellow-300 px-2 py-1.5">
+            <div
+              className="col-span-1 flex flex-col items-center border-2 border-black bg-yellow-300 px-2 py-1.5"
+              onClick={() =>
+                handleRollDice("SAN", abilityDetails.san, bonusDice)
+              }
+            >
               <span className="text-[10px] font-black tracking-widest bg-black text-white px-1.5 w-full text-center mb-1">
                 SAN
               </span>
@@ -659,18 +904,18 @@ const CoCCharaMaker = () => {
             </div>
             <div className="col-span-1 flex flex-col items-center border-2 border-black bg-yellow-300 px-2 py-1.5">
               <span className="text-[10px] font-black tracking-widest bg-black text-white px-1.5 w-full text-center mb-1">
-                LUCK
+                HP
               </span>
               <span className="text-xl font-black tabular-nums">
-                {abilityDetails.luck}
+                {abilityDetails.hp}
               </span>
             </div>
-            <div className="col-span-1 flex flex-col items-center border-2 border-black bg-white px-2 py-1.5">
+            <div className="col-span-1 flex flex-col items-center border-2 border-black bg-yellow-300 px-2 py-1.5">
               <span className="text-[10px] font-black tracking-widest bg-black text-white px-1.5 w-full text-center mb-1">
-                EDU
+                MP
               </span>
               <span className="text-xl font-black tabular-nums">
-                {abilityDetails.edu}
+                {abilityDetails.mp}
               </span>
             </div>
           </div>
@@ -743,16 +988,96 @@ const CoCCharaMaker = () => {
             </div>
           </details>
         </section>
+        {/* ===== ダイスロール ===== */}
+        <section className="flex flex-col gap-3 animate-[fadeSlideIn_0.4s_0.12s_ease-out_both] bg-[#fffde7] border-4 border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] p-4 flex-0.5 min-w-56">
+          <h2 className="text-sm font-black uppercase tracking-widest mb-3 pb-1.5 border-b-2 border-black">
+            🎲 ダイスロール設定
+          </h2>
+          <div className="flex flex-row gap-3">
+            <div className="flex flex-col items-center gap-3 self-center justify-between">
+              <button
+                type="button"
+                onClick={() => setBonusDice((v) => v + 1)}
+                className={`${btnClass} !bg-[#d4edda] w-full`}
+              >
+                ボーナス
+              </button>
+              <div
+                className={`font-bold text-2xl px-2 py-1 border-2 border-black w-full text-center !bg-${bonusDice > 0 ? "[#d4edda]" : bonusDice < 0 ? "[#f8d7da]" : "[#ffffff]"}`}
+              >
+                {Math.abs(bonusDice)}
+              </div>
+              <button
+                type="button"
+                onClick={() => setBonusDice((v) => v - 1)}
+                className={`${btnClass} !bg-[#f8d7da] w-full`}
+              >
+                ペナルティ
+              </button>
+            </div>
+
+            {diceResult && (
+              <div className="border-4 border-black bg-white p-3 shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] flex flex-col gap-3">
+                <div className="text-sm font-black tracking-widest">
+                  🎲 判定結果
+                </div>
+                <div className="flex flex-col justify-between items-start gap-4 flex-wrap">
+                  <div className="font-mono text-xl flex flex-row gap-2 items-baseline text-md flex-1 justify-center">
+                    <span>
+                      {selectedSkill}({diceResult.goal})
+                    </span>
+                    <span className="text-xs">vs</span>
+                    <span>{diceResult.total}</span>
+                  </div>
+                  <div
+                    className={`flex-1 text-center text-3xl font-black uppercase px-4 py-3 border-2 border-black ${
+                      diceResult.isSuccess ? "bg-[#d4f7d4]" : "bg-[#f7d4d4]"
+                    }`}
+                  >
+                    {diceResult.isSuccess ? "成功" : "失敗"}
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        </section>
       </div>
 
       {/* ===== 技能（カテゴリ別） ===== */}
       <section className="animate-[fadeSlideIn_0.4s_0.15s_ease-out_both] flex flex-col gap-3">
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-3">
           <div className="bg-black text-white px-3 py-1">
             <h2 className="text-sm font-black uppercase tracking-widest">
               ⚔️ 技能
             </h2>
           </div>
+          {skillAllocationDetails && (
+            <>
+              <div className="text-xs font-bold border-2 border-black bg-blue-100 px-2 py-1">
+                職業ポイント: {skillAllocationDetails.jobPoints} (残り:{" "}
+                {skillAllocationDetails.jobPoints - usedJobPoints})
+                <span className="ml-1 text-gray-500">
+                  [
+                  {skillAllocationDetails.pointCalculation
+                    .map((pc) => `${pc.param.toUpperCase()}×${pc.weight}`)
+                    .join("+")}
+                  ]
+                </span>
+              </div>
+              <div className="text-xs font-bold border-2 border-black bg-green-100 px-2 py-1">
+                趣味ポイント: {skillAllocationDetails.interestPoints} (残り:{" "}
+                {skillAllocationDetails.interestPoints - usedInterestPoints})
+                <span className="ml-1 text-gray-500">[INT×2]</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSkillEditMode((v) => !v)}
+                className={`${btnClass} ${skillEditMode ? "!bg-yellow-300" : ""}`}
+              >
+                {skillEditMode ? "✅ 編集完了" : "✏️ 割り振り編集"}
+              </button>
+            </>
+          )}
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {SKILL_CATEGORIES.map((cat) => (
@@ -765,7 +1090,32 @@ const CoCCharaMaker = () => {
               </h3>
               <div className="flex flex-col gap-1">
                 {cat.skills.map((skill) => (
-                  <SkillRow key={skill} label={skill} score={skills[skill]} />
+                  <SkillRow
+                    key={skill}
+                    label={skill}
+                    score={skills[skill]}
+                    onClick={() => {
+                      if (!skillEditMode)
+                        handleRollDice(skill, skills[skill], bonusDice);
+                    }}
+                    baseValue={
+                      skillAllocationDetails ? initialSkills[skill] : undefined
+                    }
+                    jobAllocated={
+                      skillAllocationDetails?.jobAllocated[skill] ?? 0
+                    }
+                    interestAllocated={
+                      skillAllocationDetails?.interestAllocated[skill] ?? 0
+                    }
+                    isJobSkill={skillAllocationDetails?.jobSkillKeys.includes(
+                      skill,
+                    )}
+                    editMode={skillEditMode && !!skillAllocationDetails}
+                    onJobChange={(v) => handleJobAllocatedChange(skill, v)}
+                    onInterestChange={(v) =>
+                      handleInterestAllocatedChange(skill, v)
+                    }
+                  />
                 ))}
               </div>
             </div>
