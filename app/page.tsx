@@ -284,6 +284,14 @@ const CoCCharaMaker = () => {
 
   const initialSkills = createInitialSkills();
 
+  const getBaseSkillValue = (skill: keyof Skills): number => {
+    if (!skillAllocationDetails) return initialSkills[skill];
+    const jobAllocated = skillAllocationDetails.jobAllocated[skill] ?? 0;
+    const interestAllocated =
+      skillAllocationDetails.interestAllocated[skill] ?? 0;
+    return skills[skill] - jobAllocated - interestAllocated;
+  };
+
   const usedJobPoints = skillAllocationDetails
     ? Object.values(skillAllocationDetails.jobAllocated).reduce(
         (a, b) => a + (b ?? 0),
@@ -299,7 +307,7 @@ const CoCCharaMaker = () => {
 
   const handleJobAllocatedChange = (skill: keyof Skills, newVal: number) => {
     if (!skillAllocationDetails) return;
-    const base = initialSkills[skill];
+    const base = getBaseSkillValue(skill);
     const currInterest = skillAllocationDetails.interestAllocated[skill] ?? 0;
     const newTotal = base + newVal + currInterest;
     if (newTotal > 90) return;
@@ -322,7 +330,7 @@ const CoCCharaMaker = () => {
     newVal: number,
   ) => {
     if (!skillAllocationDetails) return;
-    const base = initialSkills[skill];
+    const base = getBaseSkillValue(skill);
     const currJob = skillAllocationDetails.jobAllocated[skill] ?? 0;
     const newTotal = base + currJob + newVal;
     if (newTotal > 90) return;
@@ -1098,9 +1106,7 @@ const CoCCharaMaker = () => {
                       if (!skillEditMode)
                         handleRollDice(skill, skills[skill], bonusDice);
                     }}
-                    baseValue={
-                      skillAllocationDetails ? initialSkills[skill] : undefined
-                    }
+                    baseValue={getBaseSkillValue(skill)}
                     jobAllocated={
                       skillAllocationDetails?.jobAllocated[skill] ?? 0
                     }
