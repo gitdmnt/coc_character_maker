@@ -58,10 +58,9 @@ export const jobOracle = async (
   const prompt = `
 # Role
 
-以下はクトゥルフ神話TRPGのキャラクターの基本情報と能力値です。
+以下はオリジナルキャラクターの基本情報と能力値です。
 キャラクターが${scinarioSet.year}年の${scinarioSet.location}で活躍することを想定して、キャラクターの名前、職業、住所、出身地を提案してください。
 職業は、${jobs.join("、")}などの一般的な職業カテゴリを参考に、特定の1つに絞ってください。
-住所は、職業と関連性の高い場所を提案してください。
 
 
 # Data
@@ -88,7 +87,7 @@ export const jobOracle = async (
 # Output
 
 JSON Response APIとして、以下のJSON形式のデータのみを出力してください。
-{"reason": "その職業を選んだ簡潔な理由","name": "キャラクター名", "job": "職業名", "address": "住所", "hometown": "出身地"}
+{"reason": "その職業を選んだ簡潔な理由", "name": "キャラクター名", "job": "職業名", "address": "住所", "hometown": "出身地"}
 `;
 
   return JSON.parse(await getGeminiResponse(prompt));
@@ -123,9 +122,10 @@ export const jobSkillOracle = async ({
 
 職業: ${job}
 
-スキルリスト: ${Object.entries(skills)
-    .map(([skill, _value]) => `- ${skill}`)
-    .join("\n")}
+スキルリスト: (スキルの上限値は100)
+${Object.entries(skills)
+  .map(([skill, _value]) => `- ${skill}`)
+  .join("\n")}
 
 パラメータリスト:
 - str: 筋力
