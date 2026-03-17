@@ -7,6 +7,7 @@ import { EduScoreRow } from "@/components/coc/EduScoreRow";
 import { InputField } from "@/components/coc/InputField";
 import { LuckScoreRow } from "@/components/coc/LuckScoreRow";
 import { SkillRow } from "@/components/coc/SkillRow";
+import { Donate } from "@/components/Donate";
 import { createInitialSkills, SKILL_CATEGORIES } from "@/lib/coc/constants";
 import { AbilityGenerationDetails, BasicInfo, Skills } from "@/types/coc";
 import { DiceRollResult, diceRoll1D100, eduCheck } from "@/lib/coc/domain";
@@ -1177,6 +1178,7 @@ const CoCCharaMaker = () => {
           </section>
         </div>
       </div>
+      <Donate />
     </div>
   );
 };
