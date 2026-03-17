@@ -126,7 +126,9 @@ export const allocatePointsWithCap = (
 
     const availableSkills = candidateSkills
       .filter((skill) => (newSkills[skill] ?? 0) < cap)
-      .filter((skill) => !skill.includes("(その他)"));
+      .filter(
+        (skill) => !skill.includes("(その他)") && skill !== "クトゥルフ神話",
+      );
     if (availableSkills.length === 0) break;
 
     const randomSkill =
