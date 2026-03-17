@@ -160,13 +160,26 @@ export const backstoryOracle = async ({
   jobAllocated: Partial<Record<keyof Skills, number>>;
   interestAllocated: Partial<Record<keyof Skills, number>>;
   skills: Skills;
-}): Promise<{ backstory: string; address: string }> => {
+}): Promise<{
+  backstory: string;
+  address: string;
+  items: string[];
+  money: number;
+}> => {
   const prompt = `
 # Role
 
-クトゥルフ神話TRPGのキャラクターの基本情報、能力値、スキルリストを入力として、キャラクターがどのような人生を歩んできたかを考察し、キャラクターのバックストーリーと現住所を提案してください。
-バックストーリーは、キャラクターの過去の出来事や経験、家族構成、性格などを含むことができます。
-ただし、バックストーリーには明示的な技能の数値を含めないでください。
+クトゥルフ神話TRPGのキャラクターの基本情報、能力値、スキルリストを入力として、キャラクターがどのような人生を歩んできたかを考察し、キャラクターのバックストーリーと現住所、所持品と資産を提案してください。
+バックストーリーには「容姿の描写」「イデオロギー/信念」「重要な人々とその理由」「意味のある場所」「秘蔵の品」「特徴」などが含まれます。
+
+スキルの値は次のように解釈してください。
+- 1-5: 素人
+- 6-19: 初心者
+- 20-49: 趣味レベルのアマチュア
+- 50-74: 生計を立てられるプロ、学士
+- 75-89: エキスパート。修士-博士
+- 90以上: 世界クラスの達人
+
 
 スキルの信用の値は次のように解釈してください。
 - 0: 無一文
@@ -222,59 +235,7 @@ ${Object.entries(interestAllocated)
 ## Output
 
 JSON Response APIとして、以下のJSON形式のデータのみを出力してください。
-{"backstory": "キャラクターのバックストーリー", "address": "キャラクターの住所"}
-`;
-
-  return JSON.parse(await getGeminiResponse(prompt));
-};
-
-export const equipmentMoneyOracle = async (
-  scinarioSet: ScinarioSet,
-  backstory: string,
-  jobAllocated: Partial<Record<keyof Skills, number>>,
-  interestAllocated: Partial<Record<keyof Skills, number>>,
-  skills: Skills,
-): Promise<{
-  items: string[];
-  money: number;
-}> => {
-  const prompt = `
-# Role
-
-クトゥルフ神話TRPGのキャラクターのバックストーリーとスキルリストを入力として、そのキャラクターが持っている道具と所持金を提案してください。
-舞台は${scinarioSet.year}年の${scinarioSet.location}です。
-スキルの信用の値は次のように解釈してください。
-- 0: 無一文
-- 1-9: 貧乏
-- 10-49: 平均
-- 50-89: 裕福
-- 90-98以上: 富豪
-- 99: 大富豪
-
-## Data
-
-バックストーリー: ${backstory}
-
-職業スキルリスト: (スキルの上限値は100. かっこ内の数値は割り振った職業技能ポイント)
-${Object.entries(jobAllocated)
-  .map(
-    ([skill, value]) =>
-      `- ${skill}: ${skills[skill as keyof Skills]} (+${value})`,
-  )
-  .join("\n")}
-
-趣味スキルリスト: (スキルの上限値は100. かっこ内の数値は割り振った趣味技能ポイント)
-${Object.entries(interestAllocated)
-  .map(
-    ([skill, value]) =>
-      `- ${skill}: ${skills[skill as keyof Skills]} (+${value})`,
-  )
-  .join("\n")}
-
-## Output
-
-JSON Response APIとして、以下のJSON形式のデータのみを出力してください。
-{"items": ["道具1", "道具2", ...], "money": "所持金(円)"}
+{"backstory": "キャラクターのバックストーリー", "address": "キャラクターの住所", "items": ["道具1", "道具2", ...], "money": "所持金(円)"}
 `;
 
   return JSON.parse(await getGeminiResponse(prompt));
