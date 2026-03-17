@@ -1,5 +1,4 @@
 import React from "react";
-import Script from "next/script";
 
 export const Donate = () => (
   <section className="border-4 border-black bg-white p-6 shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]">
@@ -20,19 +19,14 @@ export const Donate = () => (
       >
         Ofuse で支援
       </a>
-      <Script
-        src="https://storage.ko-fi.com/cdn/widget/Widget_2.js"
-        strategy="afterInteractive"
-        onLoad={() => {
-          if (typeof window === "undefined") return;
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          const w = window as any;
-          if (typeof w.kofiwidget2 !== "undefined") {
-            w.kofiwidget2.init("Support me on Ko-fi", "#72a4f2", "O4O41W5TTW");
-            w.kofiwidget2.draw();
-          }
-        }}
-      />
+      <a
+        href="https://ko-fi.com/O4O41W5TTW"
+        target="_blank"
+        rel="noreferrer"
+        className="inline-flex items-center justify-center rounded border-2 border-black px-4 py-2 font-bold text-black shadow transition hover:bg-black hover:text-white"
+      >
+        Ko-fi で支援
+      </a>
     </div>
   </section>
 );
