@@ -162,23 +162,13 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const playerName =
-    typeof body.playerName === "string" ? body.playerName : "";
+  const playerName = typeof body.playerName === "string" ? body.playerName : "";
 
   if (typeof body.year !== "number" || !Number.isInteger(body.year)) {
     return jsonErrorResponse(
       400,
       "INVALID_YEAR",
       "year は整数で指定してください。",
-      requestId,
-    );
-  }
-
-  if (body.year < 1900 || body.year > 2300) {
-    return jsonErrorResponse(
-      400,
-      "YEAR_OUT_OF_RANGE",
-      "year は 1900 から 2300 の範囲で指定してください。",
       requestId,
     );
   }
